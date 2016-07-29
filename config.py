@@ -14,6 +14,6 @@ addr_from = '*****' # change to your full gmail address
 user_name = '*****' # change to your gmail username
 password = '*****' # change to your gmail password
 test_server = 'www.google.com'
-WIDTH=800
-HEIGHT=480
+WIDTH=480
+HEIGHT=320
 
