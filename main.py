@@ -1,3 +1,4 @@
+import sys
 import os
 import picamera
 import time
@@ -14,27 +15,55 @@ import config
 import pygame
 import io
 import random
+import gphoto2 as gp
 from config import *
 
-os.putenv('SDL_VIDEODRIVER', 'fbcon'                 )
-os.putenv('SDL_FBDEV'      , '/dev/fb1'              )
 
 ## b/w
 camera = picamera.PiCamera()
 #camera.saturation = -100
 camera.brightness = 50
+camera.framerate = 10
 camera.resolution = (2592, 1944)
+camera.preview_alpha = 200
 camera.vflip = True
 camera.hflip = True
+camera.flash_mode = 'on'
+
+black = 0, 0, 0
 
 pygame.init()
 screen = pygame.display.set_mode((0,0), pygame.FULLSCREEN)
+big_font = pygame.font.SysFont('freeserif', 50, bold=1)
+small_font = pygame.font.SysFont('freeserif', 30, bold=1)
+pretext_font = pygame.font.Font(None, 100)
 
 GPIO.cleanup()
 GPIO.setmode(GPIO.BCM)    
-GPIO.setup(led1_pin,GPIO.OUT) # LED 1
+GPIO.setup(led_charge_pin,GPIO.OUT) # LED charge
+GPIO.setup(led_torch_pin,GPIO.OUT)
 GPIO.setup(button1_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Big RED button
-GPIO.output(led1_pin,False);
+GPIO.output(led_charge_pin,True);
+GPIO.output(led_torch_pin,False);
+
+def drawText(font, textstr, clear_screen=False, color=(250, 10, 10),x=0,y=0):
+    if clear_screen:
+        screen.fill(black)
+    pltText = font.render(textstr, 1, color)
+    
+    textpos = pltText.get_rect()
+    if not x:
+        textpos.centerx = screen.get_rect().centerx
+    else:
+        textpos.centerx = x
+    if not y:    
+        textpos.centery = screen.get_rect().centery
+    else:
+        textpos.centery = y
+
+    screen.blit(pltText, textpos)
+
+    pygame.display.update()
 
 def randomImage(dir):
         files = [os.path.join(path, filename)
@@ -66,91 +95,50 @@ def preview(timeDelay, status='r', index=1):
     timeout = 1
     ticker = 0
     PRsize = (1312,976)
-    font = pygame.font.SysFont('freeserif', 38, bold=1)
-    font1 = pygame.font.SysFont('freeserif', 42, bold=1)
-    font2 = pygame.font.SysFont('freeserif', 30, bold=1)
     clk = pygame.time.Clock()
     clk.tick()
     if (status == 'r'):
-        rgb = bytearray(PRsize[0] * PRsize[1] * 3)
         ## Preview Loop
+        camera.start_preview()
+        GPIO.output(led_torch_pin,True)
         while (timeDelay):
             clk.tick()
-            stream = io.BytesIO()
-            camera.capture(stream, use_video_port=True, format='rgb', resize=PRsize)
-            stream.seek(0)
-            stream.readinto(rgb)
-            stream.close()
-     
-            img = pygame.image.frombuffer(rgb[0:(PRsize[0] * PRsize[1] * 3)], (PRsize[0],PRsize[1]), 'RGB')
-            img = pygame.transform.scale(img,(480,320))
-            screen.blit(img, (0,0))
             ticker+=clk.get_time()
             if (ticker > 2000):
                 ticker = 0
                 timeDelay=timeDelay - 1
-            text = ":)  SMILE   NOW   !!  " + str(timeDelay) 
-            textSurface = font.render(text, 1, pygame.Color(255, 255, 255))
-            #textSurface = pygame.transform.rotate(textSurface,90)
-            screen.blit(textSurface, (50, 80))
-            
-            text2 = 'photo ' + str(index) + ' of ' + str(total_pics)
-            textSurface2 = font2.render(text2, 1, pygame.Color(255, 255, 255))
-            screen.blit(textSurface2, (180, 15))
-
-            # finally update and display the image
-            pygame.display.update()
-            
-        screen.fill((255, 255, 255))
-        pygame.display.update()
-    
-    ## Processing Screen
-    elif (status == 'p'):
-        text = "  Wait.... "
-        screen.fill((255, 255, 255))
-        textSurface = font.render(text, 1, pygame.Color(255, 0, 0))
-        #textSurface = pygame.transform.rotate(textSurface,90)
-        screen.blit(textSurface, (150, 175))
-        pygame.display.update()
+            drawText(pretext_font, ":) SMILE NOW !! " + str(timeDelay), clear_screen=True, color=(255, 255, 255))
+            drawText(small_font, 'photo ' + str(index) + ' of ' + str(total_pics), color=(255,255,255), y=15)
+        GPIO.output(led_torch_pin,False)
+        camera.stop_preview()
     
     ## Waiting Screen
     elif (status == 'w'):
-        text1 = "READY ?"
-        text = "PRESS THE"
-        text2 ="DEAD MAN'S BUTTON"
         randomFile = randomImage(file_path)
         if randomFile != [] :
             displayImage(randomFile)
         else:
             screen.fill((255, 255, 255))
-        font = pygame.font.SysFont('freeserif', 34, bold=1)
-        textSurface1 = font1.render(text1, 1, pygame.Color(0,255,0))
-        #textSurface1 = pygame.transform.rotate(textSurface1,90)
-        textSurface = font.render(text, 1, pygame.Color(255, 0, 0))
-        #textSurface = pygame.transform.rotate(textSurface,90)
-        textSurface2 = font.render(text2, 1, pygame.Color(255, 0, 0))
-        #textSurface2 = pygame.transform.rotate(textSurface2,90)
-        screen.blit(textSurface1, (150, 70))
-        screen.blit(textSurface, (150, 150))
-        screen.blit(textSurface2, (50, 200))
-        pygame.display.update()
-        
+        drawText(big_font, "READY?", color=(0,255,0), y=50) 
+        drawText(big_font, "Touch me", color=(255,0,0), y=200) 
 
 def start_photobooth():
     ##for the first PIC
     preview(3,'r',1)
-    
-    font = pygame.font.SysFont('freeserif', 30, bold=1)
 
     #take the photos
     file_name=time.strftime("%d%m%Y_%H%M%S")
     for i, filename in enumerate(camera.capture_continuous(file_path + file_name + '-' + '{counter:02d}.jpg')):
         print(filename)
-        ## time.sleep(0.25) #pause the LED on for just a bit
-        ## time.sleep(capture_delay) # pause in-between shots
+
+        if use_external_camera == 1:
+            camera0 = gp.check_result(gp.gp_camera_new())
+            gp.check_result(gp.gp_camera_init(camera0))
+            gp.gp_camera_capture(camera0, gp.GP_CAPTURE_IMAGE)
+            gp.gp_camera_exit(camera0)
 
         if i == total_pics-1:
-            GPIO.output(led1_pin,False);
+            #GPIO.output(led1_pin,False);
             break
         preview(3,'r',i+2)
 
@@ -158,10 +146,7 @@ def start_photobooth():
     for pNum in range (1,total_pics+1):
         displayImage(file_path + file_name + '-0' + str(pNum) + '.jpg')
         text = 'photo ' + str(pNum) + ' of ' + str(total_pics)
-        textSurface = font.render(text, 1, pygame.Color(255, 255, 255))
-        screen.blit(textSurface, (180, 15))
-        pygame.display.update()
-
+        drawText(small_font, text, clear_screen=False, color=(255,255,255), y=15)
         time.sleep(5)
 
 ## check internet connection
@@ -219,7 +204,7 @@ def printPic():
 ## Main Loop
 while True:
     preview(1,'w')
-    GPIO.output(led1_pin,True);
+    #GPIO.output(led1_pin,True);
     ##wait for button press 
     #GPIO.wait_for_edge(button1_pin, GPIO.FALLING)
     clk = pygame.time.Clock()
@@ -228,14 +213,26 @@ while True:
     while (True):
          clk.tick()
          ticker+=clk.get_time()
+         
          if checkEvents() == 1 :
              break
+
+         for event in pygame.event.get():
+             if event.type == pygame.QUIT:
+                 print "QUIT event detected"
+                 sys.exit()
+
+             elif event.type == pygame.KEYDOWN:
+                 # Quit the program on escape
+                 if event.key == pygame.K_ESCAPE:
+                     sys.exit()
+
          if (ticker > 5000):
              ticker = 0
              preview(1,'w')
    
-    GPIO.output(led1_pin,False);
+    #GPIO.output(led1_pin,False);
     time.sleep(0.2) #debounce button press
     start_photobooth()
-    GPIO.output(led1_pin,True);
+    #GPIO.output(led1_pin,True);
     
