@@ -18,3 +18,4 @@ test_server = 'www.google.com'
 WIDTH=480
 HEIGHT=320
 use_external_camera=1
+play_shutter_sound=1

@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 import sys
 import os
 import picamera
@@ -18,7 +19,6 @@ import random
 import gphoto2 as gp
 from config import *
 
-
 ## b/w
 camera = picamera.PiCamera()
 #camera.saturation = -100
@@ -33,10 +33,13 @@ camera.flash_mode = 'on'
 black = 0, 0, 0
 
 pygame.init()
+pygame.mixer.init()
 screen = pygame.display.set_mode((0,0), pygame.FULLSCREEN)
-big_font = pygame.font.SysFont('freeserif', 50, bold=1)
+pygame.mouse.set_visible(0)
+big_font = pygame.font.SysFont('TeXGyreChorus', 50, bold=1)
 small_font = pygame.font.SysFont('freeserif', 30, bold=1)
 pretext_font = pygame.font.Font(None, 100)
+shutter_sound = pygame.mixer.Sound('/home/pi/PiBooth/shutter_sound.wav')
 
 GPIO.cleanup()
 GPIO.setmode(GPIO.BCM)    
@@ -119,12 +122,21 @@ def preview(timeDelay, status='r', index=1):
             displayImage(randomFile)
         else:
             screen.fill((255, 255, 255))
-        drawText(big_font, "READY?", color=(0,255,0), y=50) 
-        drawText(big_font, "Touch me", color=(255,0,0), y=200) 
+        drawText(pretext_font, "touch display to start", color=(255,0,0), y=250) 
+        #drawText(big_font, "Hochzeit", color=(255,255,255), y=320)
+        #drawText(big_font, "Dani & Werner         08.09.2018", color=(139,69,19), y=400)
+
+    ## main screen
+    elif (status == 'm'):
+        displayImage(file_path + 'main.jpg')
+        drawText(big_font, "Hochzeit", color=(255,255,255), y=320)
+        drawText(big_font, "Dani & Werner         08.09.2018", color=(139,69,19), y=400)
 
 def start_photobooth():
     ##for the first PIC
     preview(3,'r',1)
+    if play_shutter_sound == 1:
+        shutter_sound.play()
 
     #take the photos
     file_name=time.strftime("%d%m%Y_%H%M%S")
@@ -132,15 +144,19 @@ def start_photobooth():
         print(filename)
 
         if use_external_camera == 1:
-            camera0 = gp.check_result(gp.gp_camera_new())
-            gp.check_result(gp.gp_camera_init(camera0))
-            gp.gp_camera_capture(camera0, gp.GP_CAPTURE_IMAGE)
-            gp.gp_camera_exit(camera0)
+            context = gp.gp_context_new()
+            camera_ext = gp.check_result(gp.gp_camera_new())
+            error = gp.gp_camera_init(camera_ext, context)
+            if error != gp.GP_ERROR_MODEL_NOT_FOUND:
+                gp.gp_camera_capture(camera_ext, gp.GP_CAPTURE_IMAGE)
+            gp.gp_camera_exit(camera_ext)
 
         if i == total_pics-1:
             #GPIO.output(led1_pin,False);
             break
         preview(3,'r',i+2)
+        if play_shutter_sound == 1:
+            shutter_sound.play()
 
     #show photos
     for pNum in range (1,total_pics+1):
@@ -210,29 +226,26 @@ while True:
     clk = pygame.time.Clock()
     clk.tick()
     ticker=0
+    main_mode=True
     while (True):
-         clk.tick()
-         ticker+=clk.get_time()
+        clk.tick()
+        ticker+=clk.get_time()
          
-         if checkEvents() == 1 :
-             break
+        if checkEvents() == 1 :
+            break
 
-         for event in pygame.event.get():
-             if event.type == pygame.QUIT:
-                 print "QUIT event detected"
-                 sys.exit()
-
-             elif event.type == pygame.KEYDOWN:
-                 # Quit the program on escape
-                 if event.key == pygame.K_ESCAPE:
-                     sys.exit()
-
-         if (ticker > 5000):
-             ticker = 0
-             preview(1,'w')
+        if (ticker > 5000):
+            ticker = 0
+            if main_mode:
+                main_mode=False
+                preview(1,'m')
+            else:
+                main_mode=True
+                preview(1,'w')
    
     #GPIO.output(led1_pin,False);
     time.sleep(0.2) #debounce button press
     start_photobooth()
+    pygame.event.clear()
     #GPIO.output(led1_pin,True);
     
