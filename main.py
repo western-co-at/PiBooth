@@ -24,10 +24,10 @@ camera = picamera.PiCamera()
 #camera.saturation = -100
 camera.brightness = 50
 camera.framerate = 10
-camera.resolution = (2592, 1944)
+camera.resolution = (3280, 2464)  # change memory split to 256MB for 3280x2464 instead of 2592x1944
 camera.preview_alpha = 200
-camera.vflip = True
-camera.hflip = True
+camera.vflip = False
+camera.hflip = False
 camera.flash_mode = 'on'
 
 black = 0, 0, 0
@@ -84,7 +84,7 @@ def displayImage(file):
             image = pygame.image.load(file)
             image = pygame.transform.scale(image,(800,480))
             screen.blit(image,(0,0))
-            pygame.display.flip()
+            #pygame.display.flip()
 
 def checkEvents():
         for event in pygame.event.get():
@@ -97,11 +97,11 @@ def checkEvents():
 def preview(timeDelay, status='r', index=1):
     timeout = 1
     ticker = 0
-    PRsize = (1312,976)
     clk = pygame.time.Clock()
     clk.tick()
     if (status == 'r'):
         ## Preview Loop
+        #camera.hflip = True
         camera.start_preview()
         GPIO.output(led_torch_pin,True)
         while (timeDelay):
@@ -114,6 +114,7 @@ def preview(timeDelay, status='r', index=1):
             drawText(small_font, 'photo ' + str(index) + ' of ' + str(total_pics), color=(255,255,255), y=15)
         GPIO.output(led_torch_pin,False)
         camera.stop_preview()
+        #camera.hflip = False
     
     ## Waiting Screen
     elif (status == 'w'):
@@ -128,7 +129,7 @@ def preview(timeDelay, status='r', index=1):
 
     ## main screen
     elif (status == 'm'):
-        displayImage(file_path + 'main.jpg')
+        displayImage(file_path + '../main.jpg')
         drawText(big_font, "Hochzeit", color=(255,255,255), y=320)
         drawText(big_font, "Dani & Werner         08.09.2018", color=(139,69,19), y=400)
 
@@ -140,7 +141,7 @@ def start_photobooth():
 
     #take the photos
     file_name=time.strftime("%d%m%Y_%H%M%S")
-    for i, filename in enumerate(camera.capture_continuous(file_path + file_name + '-' + '{counter:02d}.jpg')):
+    for i, filename in enumerate(camera.capture_continuous(file_path + file_name + '-' + '{counter:02d}.jpg',use_video_port=False)):
         print(filename)
 
         if use_external_camera == 1:
